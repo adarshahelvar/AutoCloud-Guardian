@@ -1,6 +1,3 @@
-
-
-```markdown
 # 🏢 AutoCloud Guardian – Multi-Region High Availability Architecture
 
 ## 1. Objective
@@ -9,9 +6,9 @@ To ensure high availability, fault tolerance, and minimal downtime, AutoCloud Gu
 
 This design prevents:
 
-- Regional outages
-- Single point of failure
-- Infrastructure downtime impact
+- Regional outages  
+- Single point of failure  
+- Infrastructure downtime impact  
 
 ---
 
@@ -23,12 +20,12 @@ flowchart TB
     Route53 --> ALB1
     Route53 --> ALB2
 
-    subgraph Region A
+    subgraph Region_A
         ALB1 --> ECS1
         ECS1 --> MongoA[(MongoDB Primary)]
     end
 
-    subgraph Region B
+    subgraph Region_B
         ALB2 --> ECS2
         ECS2 --> MongoB[(MongoDB Replica)]
     end
