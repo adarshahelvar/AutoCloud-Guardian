@@ -12,7 +12,7 @@ export const protect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded.id).slect("-password");
+    const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {
       return res
@@ -23,7 +23,8 @@ export const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({ success: false, message: "Invalid token" });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid token", error });
   }
 };
-z;
