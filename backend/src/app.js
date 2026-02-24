@@ -3,6 +3,7 @@ import cors from "cors";
 import morgan from "morgan";
 import authRoutes from "./routes/auth.routes.js";
 import organizationRoutes from "./routes/organization.routes.js";
+import cloudAccountRoutes from "./routes/cloudAccount.routes.js";
 const app = express();
 
 app.use(cors());
@@ -17,5 +18,6 @@ app.get("/", (req, res, next) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/organizations", organizationRoutes);
+app.use("/api/cloud-accounts", cloudAccountRoutes);
 
 export default app;
