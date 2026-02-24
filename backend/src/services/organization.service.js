@@ -8,5 +8,14 @@ export const createOrganization = async (userId, orgName) => {
     throw new Error("Organization already exists");
   }
 
-  
+  const organization = await Organization.create({
+    name: orgName,
+    createdBy: userId,
+  });
+
+  await User.findByIdAndUpdate(userId, {
+    organizationId: organization._id,
+    role: "SUPER_ADMIN",
+  });
+  return organization;
 };
