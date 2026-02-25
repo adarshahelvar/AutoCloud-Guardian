@@ -25,6 +25,7 @@ export const detectIdleEC2 = async (
     organization: organizationId,
     cloudAccount: cloudAccountId,
     resourceType: "EC2",
+    "metadata.state": "running"
   });
 
   const idleInstances = [];

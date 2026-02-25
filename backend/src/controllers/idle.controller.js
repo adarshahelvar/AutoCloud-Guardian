@@ -28,13 +28,28 @@ export const runIdleCheck = async (req, res) => {
       cloudAccount._id
     );
 
-    res.status(200).json({
+    // ✅ If no idle instances
+    if (!idleInstances || idleInstances.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No running or idle EC2 instances found",
+        totalIdle: 0,
+        data: [],
+      });
+    }
+
+    // ✅ If idle instances found
+    return res.status(200).json({
       success: true,
+      message: "Idle EC2 instances detected",
       totalIdle: idleInstances.length,
       data: idleInstances,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("Idle detection error:", error);
+
+    return res.status(500).json({
       success: false,
       message: "Idle detection failed",
       error: error.message,
