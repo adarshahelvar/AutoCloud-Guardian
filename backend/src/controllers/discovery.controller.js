@@ -40,7 +40,12 @@ export const triggerDiscovery = async (req, res) => {
     );
 
     // Run discovery
-    const results = await runDiscovery(credentials, cloudAccount.region);
+    const results = await runDiscovery(
+      credentials,
+      cloudAccount.region,
+      cloudAccount.organization,
+      cloudAccount._id,
+    );
 
     res.status(200).json({
       success: true,
