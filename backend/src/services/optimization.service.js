@@ -1,5 +1,5 @@
 import ResourceInventory from "../models/resourceInventory.model.js";
-import Recommendation from "../models/remediation.model.js";
+import Recommendation from "../models/recommendation.model.js";
 
 export const runOptimization = async (orgId, cloudAccountId) => {
   /* =============================
