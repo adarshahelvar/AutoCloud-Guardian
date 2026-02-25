@@ -5,12 +5,12 @@ import {
 
 export const getMonthlyCost = async (credentials) => {
   const client = new CostExplorerClient({
-    region: "us-east-1", // Cost Explorer is always us-east-1
+    region: "us-east-1", // Cost Explorer works only in us-east-1
     credentials,
   });
 
   const start = new Date();
-  start.setDate(1); // first day of month
+  start.setDate(1);
 
   const end = new Date();
 
@@ -31,5 +31,20 @@ export const getMonthlyCost = async (credentials) => {
 
   const response = await client.send(command);
 
-  return response.ResultsByTime[0]?.Groups || [];
+  const groups = response.ResultsByTime[0]?.Groups || [];
+
+  const formatted = groups
+    .map((item) => ({
+      service: item.Keys[0],
+      cost: parseFloat(item.Metrics.UnblendedCost.Amount),
+    }))
+    .filter((item) => item.cost > 0)
+    .sort((a, b) => b.cost - a.cost);
+
+  const total = formatted.reduce((sum, item) => sum + item.cost, 0);
+
+  return {
+    totalMonthlyCost: total,
+    services: formatted,
+  };
 };
