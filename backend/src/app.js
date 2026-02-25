@@ -7,6 +7,7 @@ import cloudAccountRoutes from "./routes/cloudAccount.routes.js";
 import discoveryRoutes from "./routes/discovery.routes.js";
 import costRoutes from "./routes/cost.routes.js";
 import idleRoutes from "./routes/idle.routes.js";
+import optimizationRoutes from "./routes/optimization.routes.js";
 
 const app = express();
 
@@ -26,5 +27,6 @@ app.use("/api/cloud-accounts", cloudAccountRoutes);
 app.use("/api/discovery", discoveryRoutes);
 app.use("/api/cost", costRoutes);
 app.use("/api/idle", idleRoutes);
+app.use("/api/optimization", optimizationRoutes);
 
 export default app;
