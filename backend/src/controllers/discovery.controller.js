@@ -14,7 +14,6 @@
 //     });
 //   }
 // };
-
 import CloudAccount from "../models/cloudAccount.model.js";
 import { assumeCustomerRole } from "../utils/awsClient.js";
 import { runDiscovery } from "../services/discovery.service.js";
@@ -32,19 +31,19 @@ export const triggerDiscovery = async (req, res) => {
       });
     }
 
-    // Assume role
+    // ✅ Assume role
     const credentials = await assumeCustomerRole(
       cloudAccount.roleArn,
       cloudAccount.externalId,
-      cloudAccount.region,
+      cloudAccount.region
     );
 
-    // Run discovery
+    // ✅ Run discovery
     const results = await runDiscovery(
       credentials,
       cloudAccount.region,
-      cloudAccount.organization,
-      cloudAccount._id,
+      req.user.organizationId,
+      cloudAccount._id
     );
 
     res.status(200).json({

@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth.routes.js";
 import organizationRoutes from "./routes/organization.routes.js";
 import cloudAccountRoutes from "./routes/cloudAccount.routes.js";
 import discoveryRoutes from "./routes/discovery.routes.js";
+import costRoutes from "./routes/cost.routes.js";
 
 const app = express();
 
@@ -22,5 +23,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/cloud-accounts", cloudAccountRoutes);
 app.use("/api/discovery", discoveryRoutes);
+app.use("/api/cost", costRoutes);
 
 export default app;
