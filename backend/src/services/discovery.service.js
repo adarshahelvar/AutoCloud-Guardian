@@ -1,9 +1,23 @@
-import {
-  EC2Client,
-  DescribeInstancesCommand,
-} from "@aws-sdk/client-ec2";
+import { scanEC2 } from "./scanners/ec2.scanner.js";
+import { scanEBS } from "./scanners/ebs.scanner.js";
+import { scanRDS } from "./scanners/rds.scanner.js";
+import { scanS3 } from "./scanners/s3.scanner.js";
+import { scanLambda } from "./scanners/lambda.sacanner.js";
+import { scanELB } from "./scanners/elb.scanner.js";
+import { scanNAT } from "./scanners/nat.scanner.js";
+import { scanECS } from "./scanners/ecs.scanner.js";
+import { scanEKS } from "./scanners/eks.scanner.js";
 
-import ResourceInventory from "../models/resourceInventory.model.js";
+/**
+ * Master Discovery Orchestrator
+ * ---------------------------------
+ * Executes all service scanners sequentially.
+ * Each scanner:
+ *  - Connects using assumed role credentials
+ *  - Fetches resources
+ *  - Stores in ResourceInventory
+ *  - Returns count
+ */
 
 export const runDiscovery = async (
   credentials,
@@ -11,63 +25,110 @@ export const runDiscovery = async (
   organizationId,
   cloudAccountId
 ) => {
-  const ec2Client = new EC2Client({
-    region,
-    credentials,
-  });
-
-  const command = new DescribeInstancesCommand({});
-  const response = await ec2Client.send(command);
-
-  const activeInstanceIds = [];
-  let ec2Count = 0;
-
-  for (const reservation of response.Reservations || []) {
-    for (const instance of reservation.Instances || []) {
-      ec2Count++;
-      activeInstanceIds.push(instance.InstanceId);
-
-      await ResourceInventory.findOneAndUpdate(
-        {
-          organization: organizationId,
-          cloudAccount: cloudAccountId,
-          resourceType: "EC2",
-          resourceId: instance.InstanceId,
-        },
-        {
-          region,
-          metadata: {
-            state: instance.State?.Name,
-            instanceType: instance.InstanceType,
-            launchTime: instance.LaunchTime,
-          },
-          lastScannedAt: new Date(),
-        },
-        {
-          upsert: true,
-          new: true,
-        }
-      );
-    }
-  }
-
-  // Mark terminated
-  await ResourceInventory.updateMany(
-    {
-      organization: organizationId,
-      cloudAccount: cloudAccountId,
-      resourceType: "EC2",
-      resourceId: { $nin: activeInstanceIds },
-    },
-    {
-      $set: {
-        "metadata.state": "terminated",
-        lastScannedAt: new Date(),
-      },
-    }
-  );
-
-  return {
-    ec2: ec2Count,
+  const results = {
+    ec2: 0,
+    ebs: 0,
+    rds: 0,
+    s3: 0,
+    lambda: 0,
+    elb: 0,
+    nat: 0,
+    ecs: 0,
+    eks: 0,
   };
+
+  try {
+    console.log("🚀 Starting Discovery...");
+
+    /* =======================
+       Core Compute Services
+    ========================== */
+
+    results.ec2 = await scanEC2(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    results.ebs = await scanEBS(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    results.lambda = await scanLambda(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    /* =======================
+       Databases
+    ========================== */
+
+    results.rds = await scanRDS(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    /* =======================
+       Storage
+    ========================== */
+
+    results.s3 = await scanS3(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    /* =======================
+       Networking
+    ========================== */
+
+    results.elb = await scanELB(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    results.nat = await scanNAT(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    /* =======================
+       Containers
+    ========================== */
+
+    results.ecs = await scanECS(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    results.eks = await scanEKS(
+      credentials,
+      region,
+      organizationId,
+      cloudAccountId
+    );
+
+    console.log("✅ Discovery Completed");
+
+    return results;
+
+  } catch (error) {
+    console.error("❌ Discovery Error:", error.message);
+    throw error;
+  }
 };
