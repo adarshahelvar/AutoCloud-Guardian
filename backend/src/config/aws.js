@@ -3,9 +3,12 @@ import {
   AssumeRoleCommand,
   GetCallerIdentityCommand,
 } from "@aws-sdk/client-sts";
-import { resolveHttpAuthRuntimeConfig } from "@aws-sdk/client-sts/dist-types/auth/httpAuthExtensionConfiguration";
 
-export const validateAwsConnection = async (roleArn, externalId, region) => {
+export const validateAwsConnection = async (
+  roleArn,
+  externalId,
+  region
+) => {
   try {
     const stsClient = new STSClient({ region });
 
@@ -16,7 +19,11 @@ export const validateAwsConnection = async (roleArn, externalId, region) => {
       DurationSeconds: 900,
     });
 
-    const assumedRole = await stsClient.send({ assumeRoleCommand });
+    const assumedRole = await stsClient.send(assumeRoleCommand);
+
+    if (!assumedRole.Credentials) {
+      throw new Error("Failed to assume role");
+    }
 
     const tempCredentials = {
       accessKeyId: assumedRole.Credentials.AccessKeyId,
@@ -30,11 +37,12 @@ export const validateAwsConnection = async (roleArn, externalId, region) => {
     });
 
     const identity = await identityClient.send(
-      new GetCallerIdentityCommand({}),
+      new GetCallerIdentityCommand({})
     );
 
-    return identity; // It contains Account, Arn, UserId
+    return identity;
   } catch (error) {
-    throw new Error("AWS Validation failed", error.message);
+    console.error("AWS Validation Error:", error);
+    throw new Error("AWS Validation failed: " + error.message);
   }
 };

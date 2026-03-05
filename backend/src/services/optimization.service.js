@@ -1,73 +1,116 @@
-import ResourceInventory from "../models/resourceInventory.model.js";
 import Recommendation from "../models/recommendation.model.js";
 
-export const runOptimization = async (orgId, cloudAccountId) => {
-  /* =============================
-     1️⃣ Idle EC2 Detection
-  ============================== */
+// Optimizers
+import { optimizeEC2 } from "./optimizers/ec2.optimizer.js";
+import { optimizeECS } from "./optimizers/ecs.optimizer.js";
+import { optimizeEKS } from "./optimizers/eks.optimizer.js";
+import { optimizeEBS } from "./optimizers/ebs.optimizer.js";
+import { optimizeElasticIP } from "./optimizers/networking.optimizer.js";
+import { optimizeRDS } from "./optimizers/rds.optimizer.js";
+import { optimizeS3 } from "./optimizers/s3.optimizer.js";
 
-  const ec2Instances = await ResourceInventory.find({
-    organization: orgId,
-    cloudAccount: cloudAccountId,
-    resourceType: "EC2",
-  });
+/**
+ * -----------------------------------------------------
+ * Run Full Optimization Engine
+ * -----------------------------------------------------
+ */
+export const runOptimization = async (
+  credentials,
+  region,
+  organizationId,
+  cloudAccountId
+) => {
+  try {
+    console.log("🚀 Starting Optimization Engine...");
 
-  for (const instance of ec2Instances) {
-    if (instance.metadata?.state === "running") {
-      // Simple rule (expand later with CloudWatch metrics)
-      if (instance.metadata?.instanceType === "t2.micro") {
-        await Recommendation.findOneAndUpdate(
-          {
-            resourceId: instance.resourceId,
-            cloudAccount: cloudAccountId,
-          },
-          {
-            organization: orgId,
-            cloudAccount: cloudAccountId,
-            resourceId: instance.resourceId,
-            resourceType: "EC2",
-            severity: "MEDIUM",
-            message: "Instance may be underutilized. Consider resizing.",
-            estimatedMonthlySavings: 10,
-          },
-          { upsert: true },
-        );
-      }
+    /* -------------------------------
+       Validate Credentials
+    --------------------------------*/
+    if (
+      !credentials ||
+      !credentials.accessKeyId ||
+      !credentials.secretAccessKey
+    ) {
+      throw new Error("Invalid AWS credentials received");
     }
-  }
 
-  /* =============================
-     2️⃣ Unattached EBS Detection
-  ============================== */
+    const allRecommendations = [];
 
-  const volumes = await ResourceInventory.find({
-    organization: orgId,
-    cloudAccount: cloudAccountId,
-    resourceType: "EBS",
-  });
+    /* ================= EC2 ================= */
+    console.log("🔍 Optimizing EC2...");
+    const ec2Recs = await optimizeEC2(credentials, region);
+    if (ec2Recs?.length) allRecommendations.push(...ec2Recs);
 
-  for (const volume of volumes) {
-    if (!volume.metadata?.attachments?.length) {
+    /* ================= ECS ================= */
+    console.log("🔍 Optimizing ECS...");
+    const ecsRecs = await optimizeECS(credentials, region);
+    if (ecsRecs?.length) allRecommendations.push(...ecsRecs);
+
+    /* ================= EKS ================= */
+    console.log("🔍 Optimizing EKS...");
+    const eksRecs = await optimizeEKS(credentials, region);
+    if (eksRecs?.length) allRecommendations.push(...eksRecs);
+
+    /* ================= EBS ================= */
+    console.log("🔍 Optimizing EBS...");
+    const ebsRecs = await optimizeEBS(credentials, region);
+    if (ebsRecs?.length) allRecommendations.push(...ebsRecs);
+
+    /* ================= Elastic IP ================= */
+    console.log("🔍 Optimizing Elastic IP...");
+    const eipRecs = await optimizeElasticIP(credentials, region);
+    if (eipRecs?.length) allRecommendations.push(...eipRecs);
+
+    /* ================= RDS ================= */
+    console.log("🔍 Optimizing RDS...");
+    const rdsRecs = await optimizeRDS(credentials, region);
+    if (rdsRecs?.length) allRecommendations.push(...rdsRecs);
+
+    /* ================= S3 ================= */
+    console.log("🔍 Optimizing S3...");
+    const s3Recs = await optimizeS3(credentials, region);
+    if (s3Recs?.length) allRecommendations.push(...s3Recs);
+
+    console.log(`✅ Total Recommendations Found: ${allRecommendations.length}`);
+
+    /* ------------------------------------------------
+       Save Recommendations To Database
+    ------------------------------------------------ */
+
+    let savedCount = 0;
+
+    for (const rec of allRecommendations) {
       await Recommendation.findOneAndUpdate(
         {
-          resourceId: volume.resourceId,
+          resourceId: rec.resourceId,
           cloudAccount: cloudAccountId,
         },
         {
-          organization: orgId,
+          organization: organizationId,
           cloudAccount: cloudAccountId,
-          resourceId: volume.resourceId,
-          resourceType: "EBS",
-          severity: "HIGH",
-          message: "Unattached volume detected. Delete to save cost.",
-          estimatedMonthlySavings: 5,
+          resourceId: rec.resourceId,
+          resourceType: rec.resourceType,
+          severity: rec.severity,
+          message: rec.message,
+          estimatedMonthlySavings: rec.estimatedMonthlySavings || 0,
+          status: "OPEN",
         },
-        { upsert: true },
+        {
+          upsert: true,
+          new: true,
+        }
       );
-    }
-  }
 
-  return {
-    message: "Optimization analysis completed",
-  };
+      savedCount++;
+    }
+
+    return {
+      success: true,
+      totalRecommendations: savedCount,
+      message: "Optimization analysis completed",
+    };
+  } catch (error) {
+    console.error("❌ Optimization Engine Failed:", error);
+    throw error;
+  }
 };

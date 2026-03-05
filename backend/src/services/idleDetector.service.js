@@ -1,67 +1,69 @@
 import {
+  EC2Client,
+  DescribeInstancesCommand,
+} from "@aws-sdk/client-ec2";
+
+import {
   CloudWatchClient,
   GetMetricStatisticsCommand,
 } from "@aws-sdk/client-cloudwatch";
 
-import ResourceInventory from "../models/resourceInventory.model.js";
-
-export const detectIdleEC2 = async (
-  credentials,
-  region,
-  organizationId,
-  cloudAccountId
-) => {
-  const cloudwatch = new CloudWatchClient({
-    region,
-    credentials,
-  });
-
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  const now = new Date();
-
-  const ec2Instances = await ResourceInventory.find({
-    organization: organizationId,
-    cloudAccount: cloudAccountId,
-    resourceType: "EC2",
-    "metadata.state": "running"
-  });
+export const detectIdleEC2 = async (credentials, region) => {
+  const ec2Client = new EC2Client({ region, credentials });
+  const cwClient = new CloudWatchClient({ region, credentials });
 
   const idleInstances = [];
 
-  for (const instance of ec2Instances) {
-    const command = new GetMetricStatisticsCommand({
-      Namespace: "AWS/EC2",
-      MetricName: "CPUUtilization",
-      Dimensions: [
-        {
-          Name: "InstanceId",
-          Value: instance.resourceId,
-        },
-      ],
-      StartTime: sevenDaysAgo,
-      EndTime: now,
-      Period: 86400, // 1 day
-      Statistics: ["Average"],
-    });
+  const ec2Data = await ec2Client.send(
+    new DescribeInstancesCommand({})
+  );
 
-    const data = await cloudwatch.send(command);
+  for (const reservation of ec2Data.Reservations || []) {
+    for (const instance of reservation.Instances || []) {
+      if (instance.State.Name !== "running") continue;
 
-    const datapoints = data.Datapoints || [];
+      const endTime = new Date();
+      const startTime = new Date();
+      startTime.setDate(endTime.getDate() - 7);
 
-    if (datapoints.length === 0) continue;
+      const metricParams = {
+        Namespace: "AWS/EC2",
+        MetricName: "CPUUtilization",
+        Dimensions: [
+          {
+            Name: "InstanceId",
+            Value: instance.InstanceId,
+          },
+        ],
+        StartTime: startTime,
+        EndTime: endTime,
+        Period: 86400, // 1 day
+        Statistics: ["Average"],
+      };
 
-    const avgCpu =
-      datapoints.reduce((sum, point) => sum + point.Average, 0) /
-      datapoints.length;
+      const metrics = await cwClient.send(
+        new GetMetricStatisticsCommand(metricParams)
+      );
 
-    if (avgCpu < 5) {
-      idleInstances.push({
-        instanceId: instance.resourceId,
-        averageCpu: avgCpu,
-        recommendation: "Consider stopping or resizing this instance",
-      });
+      const datapoints = metrics.Datapoints || [];
+
+      if (datapoints.length === 0) continue;
+
+      const totalCpu = datapoints.reduce(
+        (sum, point) => sum + point.Average,
+        0
+      );
+
+      const avgCpu = totalCpu / datapoints.length;
+
+      if (avgCpu < 5) {
+        idleInstances.push({
+          instanceId: instance.InstanceId,
+          averageCpu: avgCpu,
+          recommendation:
+            "Instance idle for 7 days. Consider stopping to save cost.",
+        });
+      }
     }
   }
 
