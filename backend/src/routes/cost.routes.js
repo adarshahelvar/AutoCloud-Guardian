@@ -1,12 +1,13 @@
 import express from "express";
 import { getCostAnalysis } from "../controllers/cost.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
+import { getCostTrendAnalysis } from "../controllers/costTrend.controller.js";
 
 const router = express.Router();
 
-// http://locathost:5000/api/cost
+// http://localhost:5000/api/cost
 router.post("/", protect, getCostAnalysis);
-// http://locathost:5000/api/cost
-// router.post("/cloud-cost", getCloudCost);
+// http://localhost:5000/api/cost/trend
+router.post("/trend", getCostTrendAnalysis);
 
 export default router;
