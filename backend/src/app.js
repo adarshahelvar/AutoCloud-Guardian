@@ -9,6 +9,7 @@ import costRoutes from "./routes/cost.routes.js";
 import idleRoutes from "./routes/idle.routes.js";
 import optimizationRoutes from "./routes/optimization.routes.js";
 import recommendationRoutes from "./routes/recommendation.routes.js";
+import remediationRoutes from "./routes/remediation.routes.js";
 
 const app = express();
 
@@ -30,5 +31,6 @@ app.use("/api/cost", costRoutes);
 app.use("/api/idle", idleRoutes);
 app.use("/api/optimization", optimizationRoutes);
 app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/remediation", remediationRoutes);
 
 export default app;
