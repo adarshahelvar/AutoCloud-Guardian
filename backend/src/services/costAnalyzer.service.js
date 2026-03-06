@@ -3,16 +3,22 @@ import {
   GetCostAndUsageCommand,
 } from "@aws-sdk/client-cost-explorer";
 
+/*
+--------------------------------------------
+GET MONTHLY COST FOR FULL AWS ACCOUNT
+--------------------------------------------
+*/
 export const getMonthlyCost = async (credentials) => {
   try {
     const client = new CostExplorerClient({
-      region: "us-east-1",
+      region: "us-east-1", // Cost Explorer works only here
       credentials,
     });
 
     const end = new Date();
     const start = new Date();
 
+    // last 30 days
     start.setMonth(start.getMonth() - 1);
 
     const command = new GetCostAndUsageCommand({
@@ -22,10 +28,15 @@ export const getMonthlyCost = async (credentials) => {
       },
       Granularity: "MONTHLY",
       Metrics: ["UnblendedCost"],
+
       GroupBy: [
         {
           Type: "DIMENSION",
           Key: "SERVICE",
+        },
+        {
+          Type: "DIMENSION",
+          Key: "REGION",
         },
       ],
     });
@@ -34,24 +45,18 @@ export const getMonthlyCost = async (credentials) => {
 
     const groups = response.ResultsByTime[0].Groups || [];
 
-    let services = groups.map((item) => ({
+    const formatted = groups.map((item) => ({
       service: item.Keys[0],
+      region: item.Keys[1],
       cost: parseFloat(item.Metrics.UnblendedCost.Amount),
       unit: item.Metrics.UnblendedCost.Unit,
     }));
 
-    // Remove zero cost services
-    services = services.filter((s) => s.cost > 0);
-
-    // Sort by highest cost
-    services.sort((a, b) => b.cost - a.cost);
-
-    const totalCost = services.reduce((sum, item) => sum + item.cost, 0);
+    const totalCost = formatted.reduce((sum, item) => sum + item.cost, 0);
 
     return {
       totalCost,
-      services,
-      topServices: services.slice(0, 5),
+      services: formatted,
     };
   } catch (error) {
     console.error("Cost Explorer Error:", error);

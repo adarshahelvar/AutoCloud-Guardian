@@ -3,16 +3,28 @@ import Recommendation from "../models/recommendation.model.js";
 export const generateRecommendations = async (
   organizationId,
   cloudAccountId,
-  scanResults
+  scanResults,
 ) => {
   const recommendations = [];
 
   for (const resource of scanResults) {
-
     let recommendation = null;
 
-    switch (resource.resourceType) {
+    // Universal resourceId support
+    const resourceId =
+      resource.resourceId ||
+      resource.instanceId ||
+      resource.volumeId ||
+      resource.allocationId ||
+      resource.bucketName ||
+      resource.dbIdentifier ||
+      resource.loadBalancerArn ||
+      resource.functionName ||
+      null;
 
+    if (!resourceId) continue;
+
+    switch (resource.resourceType) {
       // ======================
       // EC2
       // ======================
@@ -21,11 +33,11 @@ export const generateRecommendations = async (
           recommendation = {
             organization: organizationId,
             cloudAccount: cloudAccountId,
-            resourceId: resource.instanceId,
+            resourceId,
             resourceType: "EC2",
             severity: "HIGH",
-            message: `EC2 Instance ${resource.instanceId} is stopped but still incurring storage cost. Consider terminating it.`,
-            estimatedMonthlySavings: 10
+            message: `EC2 Instance ${resourceId} is stopped but still incurring storage cost. Consider terminating it.`,
+            estimatedMonthlySavings: 10,
           };
         }
         break;
@@ -34,15 +46,18 @@ export const generateRecommendations = async (
       // EBS
       // ======================
       case "EBS":
-        if (!resource.attached) {
+        if (
+          resource.attached === false ||
+          resource.message?.includes("Unattached")
+        ) {
           recommendation = {
             organization: organizationId,
             cloudAccount: cloudAccountId,
-            resourceId: resource.volumeId,
+            resourceId,
             resourceType: "EBS",
             severity: "HIGH",
-            message: `Unattached EBS Volume ${resource.volumeId}. Consider deleting it.`,
-            estimatedMonthlySavings: 5
+            message: `Unattached EBS Volume ${resourceId}. Consider deleting it.`,
+            estimatedMonthlySavings: 5,
           };
         }
         break;
@@ -51,15 +66,15 @@ export const generateRecommendations = async (
       // ELASTIC IP
       // ======================
       case "ELASTIC_IP":
-        if (!resource.associated) {
+        if (resource.associated === false) {
           recommendation = {
             organization: organizationId,
             cloudAccount: cloudAccountId,
-            resourceId: resource.allocationId,
+            resourceId,
             resourceType: "ELASTIC_IP",
             severity: "HIGH",
-            message: `Elastic IP ${resource.allocationId} is not attached to any instance. Release it.`,
-            estimatedMonthlySavings: 3
+            message: `Elastic IP ${resourceId} is not attached to any instance. Release it.`,
+            estimatedMonthlySavings: 3,
           };
         }
         break;
@@ -71,11 +86,11 @@ export const generateRecommendations = async (
         recommendation = {
           organization: organizationId,
           cloudAccount: cloudAccountId,
-          resourceId: resource.bucketName,
+          resourceId,
           resourceType: "S3",
           severity: "LOW",
-          message: `Enable lifecycle rules on bucket ${resource.bucketName} to move old objects to Glacier.`,
-          estimatedMonthlySavings: 2
+          message: `Enable lifecycle rules on bucket ${resourceId} to move old objects to Glacier.`,
+          estimatedMonthlySavings: 2,
         };
         break;
 
@@ -86,11 +101,11 @@ export const generateRecommendations = async (
         recommendation = {
           organization: organizationId,
           cloudAccount: cloudAccountId,
-          resourceId: resource.dbIdentifier,
+          resourceId,
           resourceType: "RDS",
           severity: "MEDIUM",
-          message: `Review instance size for RDS ${resource.dbIdentifier}. Consider downsizing if underutilized.`,
-          estimatedMonthlySavings: 15
+          message: `Review instance size for RDS ${resourceId}. Consider downsizing if underutilized.`,
+          estimatedMonthlySavings: 15,
         };
         break;
 
@@ -101,11 +116,11 @@ export const generateRecommendations = async (
         recommendation = {
           organization: organizationId,
           cloudAccount: cloudAccountId,
-          resourceId: resource.loadBalancerArn,
+          resourceId,
           resourceType: "LOAD_BALANCER",
           severity: "MEDIUM",
-          message: `Check if Load Balancer ${resource.loadBalancerArn} is unused.`,
-          estimatedMonthlySavings: 8
+          message: `Check if Load Balancer ${resourceId} is unused.`,
+          estimatedMonthlySavings: 8,
         };
         break;
 
@@ -116,15 +131,16 @@ export const generateRecommendations = async (
         recommendation = {
           organization: organizationId,
           cloudAccount: cloudAccountId,
-          resourceId: resource.functionName,
+          resourceId,
           resourceType: "LAMBDA",
           severity: "LOW",
-          message: `Review Lambda ${resource.functionName} usage. Remove unused functions.`,
-          estimatedMonthlySavings: 1
+          message: `Review Lambda ${resourceId} usage. Remove unused functions.`,
+          estimatedMonthlySavings: 1,
         };
         break;
     }
 
+    // Push only valid recommendation
     if (recommendation) {
       recommendations.push(recommendation);
     }
