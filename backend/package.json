@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.996.0",
+    "@aws-sdk/client-cost-explorer": "^3.1003.0",
     "@aws-sdk/client-ec2": "^3.996.0",
     "@aws-sdk/client-ecs": "^3.997.0",
     "@aws-sdk/client-eks": "^3.997.0",
