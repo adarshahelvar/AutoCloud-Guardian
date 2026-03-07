@@ -4,7 +4,15 @@ import {
 } from "@aws-sdk/client-ec2";
 
 export const optimizeEBS = async (credentials, region) => {
-  const ec2Client = new EC2Client({ region, credentials });
+  const ec2Client = new EC2Client({
+    region,
+    credentials: {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken,
+    },
+  });
+
   const recommendations = [];
 
   const volumes = await ec2Client.send(
@@ -16,12 +24,16 @@ export const optimizeEBS = async (credentials, region) => {
       recommendations.push({
         resourceId: volume.VolumeId,
         resourceType: "EBS",
+        region, // important
+        attached: false,
         severity: "HIGH",
         message: "Unattached EBS volume detected",
         estimatedMonthlySavings: 5,
       });
     }
   }
+
+  console.log(`EBS recommendations in ${region}:`, recommendations);
 
   return recommendations;
 };

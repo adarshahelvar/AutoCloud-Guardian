@@ -3,7 +3,7 @@ import Recommendation from "../models/recommendation.model.js";
 export const generateRecommendations = async (
   organizationId,
   cloudAccountId,
-  scanResults
+  scanResults,
 ) => {
   const recommendations = [];
 
@@ -28,7 +28,10 @@ export const generateRecommendations = async (
 
     switch (resource.resourceType) {
       case "EC2":
-        if (resource.state === "stopped") {
+        if (
+          resource.state === "stopped" ||
+          resource.message?.includes("Stopped EC2")
+        ) {
           recommendation = {
             organization: organizationId,
             cloudAccount: cloudAccountId,
@@ -39,7 +42,7 @@ export const generateRecommendations = async (
             action: "TERMINATE",
             message: `Stopped EC2 instance ${resourceId} detected.`,
             remediation:
-              "Terminate this instance if it is no longer required. If you only need it occasionally, keep it stopped.",
+              "Terminate this instance if it is no longer needed. If required occasionally, keep it stopped.",
             estimatedMonthlySavings: 10,
             status: "OPEN",
           };
@@ -57,7 +60,7 @@ export const generateRecommendations = async (
             action: "STOP",
             message: resource.message,
             remediation:
-              "Stop this EC2 instance if it is idle, or resize it if it is still needed.",
+              "Stop this instance if idle, or resize it if it is still needed.",
             estimatedMonthlySavings: resource.estimatedMonthlySavings || 25,
             status: "OPEN",
           };
@@ -74,12 +77,13 @@ export const generateRecommendations = async (
             cloudAccount: cloudAccountId,
             resourceId,
             resourceType: "EBS",
+            region: resource.region,
             severity: "HIGH",
             category: "ACTIONABLE",
             action: "DELETE",
             message: `Unattached EBS Volume ${resourceId} detected.`,
             remediation:
-              "Delete this volume if it is no longer needed. Take a snapshot first if you want backup.",
+              "Delete this volume if it is no longer needed. Take a snapshot first if backup is needed.",
             estimatedMonthlySavings: 5,
             status: "OPEN",
           };
@@ -119,7 +123,7 @@ export const generateRecommendations = async (
           action: "REVIEW",
           message: `RDS instance ${resourceId} may be underutilized.`,
           remediation:
-            "Review CPU, memory, and connections. Consider downsizing, stopping non-production DBs during off-hours, or using reserved instances.",
+            "Review CPU, memory, and connections. Consider downsizing, off-hour shutdown for non-production DBs, or reserved instances.",
           estimatedMonthlySavings: 15,
           status: "OPEN",
         };
@@ -136,7 +140,7 @@ export const generateRecommendations = async (
           action: "OPTIMIZE",
           message: `S3 bucket ${resourceId} can be optimized for lower storage cost.`,
           remediation:
-            "Enable lifecycle rules, move old objects to Glacier or Infrequent Access, and remove unused objects.",
+            "Enable lifecycle rules, transition old objects to Glacier or Infrequent Access, and remove unused data.",
           estimatedMonthlySavings: 2,
           status: "OPEN",
         };
@@ -153,7 +157,7 @@ export const generateRecommendations = async (
           action: "REVIEW",
           message: `ECS resource ${resourceId} may be over-provisioned.`,
           remediation:
-            "Review task count, CPU/memory allocation, and scale down idle services if appropriate.",
+            "Review desired task count, CPU/memory allocation, and service utilization before reducing capacity.",
           estimatedMonthlySavings: 8,
           status: "OPEN",
         };
@@ -170,7 +174,7 @@ export const generateRecommendations = async (
           action: "REVIEW",
           message: `EKS resource ${resourceId} may be underutilized.`,
           remediation:
-            "Review cluster usage, node group size, and autoscaling before reducing capacity.",
+            "Review cluster usage, node group size, and autoscaling before changing capacity.",
           estimatedMonthlySavings: 12,
           status: "OPEN",
         };
@@ -204,25 +208,8 @@ export const generateRecommendations = async (
           action: "OPTIMIZE",
           message: `NAT Gateway ${resourceId} may be contributing unnecessary cost.`,
           remediation:
-            "Review traffic patterns, consolidate NAT gateways where possible, or use alternate outbound architecture.",
+            "Review traffic patterns, consolidate NAT gateways where possible, or redesign outbound routing.",
           estimatedMonthlySavings: 10,
-          status: "OPEN",
-        };
-        break;
-
-      case "LAMBDA":
-        recommendation = {
-          organization: organizationId,
-          cloudAccount: cloudAccountId,
-          resourceId,
-          resourceType: "LAMBDA",
-          severity: "LOW",
-          category: "ADVISORY",
-          action: "REVIEW",
-          message: `Lambda function ${resourceId} should be reviewed for optimization.`,
-          remediation:
-            "Review invocation count, duration, memory settings, and remove unused functions or versions.",
-          estimatedMonthlySavings: 1,
           status: "OPEN",
         };
         break;
@@ -240,6 +227,7 @@ export const generateRecommendations = async (
       },
       {
         $set: {
+          region: recommendation.region,
           severity: recommendation.severity,
           category: recommendation.category,
           action: recommendation.action,
@@ -258,7 +246,7 @@ export const generateRecommendations = async (
       {
         upsert: true,
         new: true,
-      }
+      },
     );
 
     recommendations.push(savedRecommendation);

@@ -20,6 +20,9 @@ const recommendationSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    region: {
+      type: String,
+    },
     severity: {
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH"],
