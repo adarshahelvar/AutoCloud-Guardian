@@ -9,9 +9,23 @@ import {
 } from "@aws-sdk/client-cloudwatch";
 
 export const optimizeEC2 = async (credentials, region) => {
+  const ec2Client = new EC2Client({
+    region,
+    credentials: {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken,
+    },
+  });
 
-  const ec2Client = new EC2Client({ region, credentials });
-  const cwClient = new CloudWatchClient({ region, credentials });
+  const cwClient = new CloudWatchClient({
+    region,
+    credentials: {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken,
+    },
+  });
 
   const recommendations = [];
 
@@ -27,11 +41,25 @@ export const optimizeEC2 = async (credentials, region) => {
 
   for (const reservation of ec2Data.Reservations || []) {
     for (const instance of reservation.Instances || []) {
+      const state = instance.State?.Name;
 
-      if (instance.State.Name !== "running") continue;
+      // 1️⃣ Stopped instances → direct recommendation
+      if (state === "stopped") {
+        recommendations.push({
+          resourceId: instance.InstanceId,
+          resourceType: "EC2",
+          state: "stopped",
+          severity: "HIGH",
+          message: `Stopped EC2 instance ${instance.InstanceId}. Consider terminating it if not needed.`,
+          estimatedMonthlySavings: 10,
+        });
+        continue;
+      }
+
+      // 2️⃣ Only running instances go for CPU analysis
+      if (state !== "running") continue;
 
       metricPromises.push(
-
         cwClient
           .send(
             new GetMetricStatisticsCommand({
@@ -53,15 +81,21 @@ export const optimizeEC2 = async (credentials, region) => {
             instance,
             metrics,
           }))
-
+          .catch((error) => {
+            console.error(
+              `CloudWatch metrics failed for ${instance.InstanceId} in ${region}:`,
+              error.message
+            );
+            return null;
+          })
       );
-
     }
   }
 
   const results = await Promise.all(metricPromises);
 
   for (const result of results) {
+    if (!result) continue;
 
     const datapoints = result.metrics.Datapoints || [];
     if (!datapoints.length) continue;
@@ -71,24 +105,20 @@ export const optimizeEC2 = async (credentials, region) => {
       datapoints.length;
 
     if (avgCpu < 5) {
-
       recommendations.push({
         resourceId: result.instance.InstanceId,
         resourceType: "EC2",
+        state: "running",
         severity: "HIGH",
-        message:
-          "Instance has <5% CPU utilization for 7 days",
+        message: `EC2 instance ${result.instance.InstanceId} has <5% CPU utilization for 7 days.`,
         recommendation:
-          avgCpu < 2
-            ? "Stop instance"
-            : "Consider resizing instance",
+          avgCpu < 2 ? "Stop instance" : "Consider resizing instance",
         estimatedMonthlySavings: 25,
       });
-
     }
-
   }
 
-  return recommendations;
+  console.log(`EC2 recommendations in ${region}:`, recommendations);
 
+  return recommendations;
 };
