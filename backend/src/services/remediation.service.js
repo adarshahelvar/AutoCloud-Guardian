@@ -11,6 +11,7 @@ export const runAutoRemediation = async (credentials, region, cloudAccountId) =>
     const openRecs = await Recommendation.find({
       cloudAccount: cloudAccountId,
       status: "OPEN",
+      category: "ACTIONABLE",
     });
 
     let fixed = 0;
@@ -19,28 +20,35 @@ export const runAutoRemediation = async (credentials, region, cloudAccountId) =>
       try {
         switch (rec.resourceType) {
           case "EC2":
-            await stopEC2Instance(credentials, region, rec.resourceId);
+            if (rec.action === "STOP" || rec.action === "TERMINATE") {
+              await stopEC2Instance(credentials, region, rec.resourceId);
+            }
             break;
 
           case "EBS":
-            await deleteEBSVolume(credentials, region, rec.resourceId);
+            if (rec.action === "DELETE") {
+              await deleteEBSVolume(credentials, region, rec.resourceId);
+            }
             break;
 
           case "ELASTIC_IP":
-            await releaseElasticIP(credentials, region, rec.resourceId);
+            if (rec.action === "RELEASE") {
+              await releaseElasticIP(credentials, region, rec.resourceId);
+            }
             break;
 
           default:
-            console.log(`No remediation configured for resourceType: ${rec.resourceType}`);
             continue;
         }
 
         rec.status = "RESOLVED";
         await rec.save();
-
         fixed++;
       } catch (error) {
-        console.log(`Remediation failed for ${rec.resourceType} ${rec.resourceId}:`, error.message);
+        console.log(
+          `Remediation failed for ${rec.resourceType} ${rec.resourceId}:`,
+          error.message
+        );
       }
     }
 

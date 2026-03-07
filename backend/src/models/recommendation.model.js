@@ -24,7 +24,26 @@ const recommendationSchema = new mongoose.Schema(
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH"],
     },
+    category: {
+      type: String,
+      enum: ["ACTIONABLE", "ADVISORY"],
+      default: "ADVISORY",
+    },
+    action: {
+      type: String,
+      enum: [
+        "STOP",
+        "TERMINATE",
+        "DELETE",
+        "RELEASE",
+        "REVIEW",
+        "OPTIMIZE",
+        "NONE",
+      ],
+      default: "NONE",
+    },
     message: String,
+    remediation: String,
     estimatedMonthlySavings: Number,
     status: {
       type: String,
@@ -32,7 +51,7 @@ const recommendationSchema = new mongoose.Schema(
       default: "OPEN",
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 export default mongoose.model("Recommendation", recommendationSchema);

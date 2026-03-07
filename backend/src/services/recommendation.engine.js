@@ -19,6 +19,9 @@ export const generateRecommendations = async (
       resource.dbIdentifier ||
       resource.loadBalancerArn ||
       resource.functionName ||
+      resource.clusterArn ||
+      resource.nodegroupName ||
+      resource.natGatewayId ||
       null;
 
     if (!resourceId) continue;
@@ -32,8 +35,30 @@ export const generateRecommendations = async (
             resourceId,
             resourceType: "EC2",
             severity: "HIGH",
-            message: `EC2 Instance ${resourceId} is stopped but still incurring storage cost. Consider terminating it.`,
+            category: "ACTIONABLE",
+            action: "TERMINATE",
+            message: `Stopped EC2 instance ${resourceId} detected.`,
+            remediation:
+              "Terminate this instance if it is no longer required. If you only need it occasionally, keep it stopped.",
             estimatedMonthlySavings: 10,
+            status: "OPEN",
+          };
+        } else if (
+          resource.message?.includes("<5% CPU") ||
+          resource.message?.includes("CPU utilization")
+        ) {
+          recommendation = {
+            organization: organizationId,
+            cloudAccount: cloudAccountId,
+            resourceId,
+            resourceType: "EC2",
+            severity: "HIGH",
+            category: "ACTIONABLE",
+            action: "STOP",
+            message: resource.message,
+            remediation:
+              "Stop this EC2 instance if it is idle, or resize it if it is still needed.",
+            estimatedMonthlySavings: resource.estimatedMonthlySavings || 25,
             status: "OPEN",
           };
         }
@@ -50,7 +75,11 @@ export const generateRecommendations = async (
             resourceId,
             resourceType: "EBS",
             severity: "HIGH",
-            message: `Unattached EBS Volume ${resourceId}. Consider deleting it.`,
+            category: "ACTIONABLE",
+            action: "DELETE",
+            message: `Unattached EBS Volume ${resourceId} detected.`,
+            remediation:
+              "Delete this volume if it is no longer needed. Take a snapshot first if you want backup.",
             estimatedMonthlySavings: 5,
             status: "OPEN",
           };
@@ -58,31 +87,25 @@ export const generateRecommendations = async (
         break;
 
       case "ELASTIC_IP":
-        if (resource.associated === false) {
+        if (
+          resource.associated === false ||
+          resource.message?.includes("Unused")
+        ) {
           recommendation = {
             organization: organizationId,
             cloudAccount: cloudAccountId,
             resourceId,
             resourceType: "ELASTIC_IP",
             severity: "HIGH",
-            message: `Elastic IP ${resourceId} is not attached to any instance. Release it.`,
+            category: "ACTIONABLE",
+            action: "RELEASE",
+            message: `Unused Elastic IP ${resourceId} detected.`,
+            remediation:
+              "Release this Elastic IP if it is not reserved for future use.",
             estimatedMonthlySavings: 3,
             status: "OPEN",
           };
         }
-        break;
-
-      case "S3":
-        recommendation = {
-          organization: organizationId,
-          cloudAccount: cloudAccountId,
-          resourceId,
-          resourceType: "S3",
-          severity: "LOW",
-          message: `Enable lifecycle rules on bucket ${resourceId} to move old objects to Glacier.`,
-          estimatedMonthlySavings: 2,
-          status: "OPEN",
-        };
         break;
 
       case "RDS":
@@ -92,8 +115,63 @@ export const generateRecommendations = async (
           resourceId,
           resourceType: "RDS",
           severity: "MEDIUM",
-          message: `Review instance size for RDS ${resourceId}. Consider downsizing if underutilized.`,
+          category: "ADVISORY",
+          action: "REVIEW",
+          message: `RDS instance ${resourceId} may be underutilized.`,
+          remediation:
+            "Review CPU, memory, and connections. Consider downsizing, stopping non-production DBs during off-hours, or using reserved instances.",
           estimatedMonthlySavings: 15,
+          status: "OPEN",
+        };
+        break;
+
+      case "S3":
+        recommendation = {
+          organization: organizationId,
+          cloudAccount: cloudAccountId,
+          resourceId,
+          resourceType: "S3",
+          severity: "LOW",
+          category: "ADVISORY",
+          action: "OPTIMIZE",
+          message: `S3 bucket ${resourceId} can be optimized for lower storage cost.`,
+          remediation:
+            "Enable lifecycle rules, move old objects to Glacier or Infrequent Access, and remove unused objects.",
+          estimatedMonthlySavings: 2,
+          status: "OPEN",
+        };
+        break;
+
+      case "ECS":
+        recommendation = {
+          organization: organizationId,
+          cloudAccount: cloudAccountId,
+          resourceId,
+          resourceType: "ECS",
+          severity: "MEDIUM",
+          category: "ADVISORY",
+          action: "REVIEW",
+          message: `ECS resource ${resourceId} may be over-provisioned.`,
+          remediation:
+            "Review task count, CPU/memory allocation, and scale down idle services if appropriate.",
+          estimatedMonthlySavings: 8,
+          status: "OPEN",
+        };
+        break;
+
+      case "EKS":
+        recommendation = {
+          organization: organizationId,
+          cloudAccount: cloudAccountId,
+          resourceId,
+          resourceType: "EKS",
+          severity: "MEDIUM",
+          category: "ADVISORY",
+          action: "REVIEW",
+          message: `EKS resource ${resourceId} may be underutilized.`,
+          remediation:
+            "Review cluster usage, node group size, and autoscaling before reducing capacity.",
+          estimatedMonthlySavings: 12,
           status: "OPEN",
         };
         break;
@@ -105,8 +183,29 @@ export const generateRecommendations = async (
           resourceId,
           resourceType: "LOAD_BALANCER",
           severity: "MEDIUM",
-          message: `Check if Load Balancer ${resourceId} is unused.`,
+          category: "ADVISORY",
+          action: "REVIEW",
+          message: `Load Balancer ${resourceId} may be low-utilization or unused.`,
+          remediation:
+            "Review traffic, target groups, and attached services before removing or consolidating this load balancer.",
           estimatedMonthlySavings: 8,
+          status: "OPEN",
+        };
+        break;
+
+      case "NAT_GATEWAY":
+        recommendation = {
+          organization: organizationId,
+          cloudAccount: cloudAccountId,
+          resourceId,
+          resourceType: "NAT_GATEWAY",
+          severity: "MEDIUM",
+          category: "ADVISORY",
+          action: "OPTIMIZE",
+          message: `NAT Gateway ${resourceId} may be contributing unnecessary cost.`,
+          remediation:
+            "Review traffic patterns, consolidate NAT gateways where possible, or use alternate outbound architecture.",
+          estimatedMonthlySavings: 10,
           status: "OPEN",
         };
         break;
@@ -118,7 +217,11 @@ export const generateRecommendations = async (
           resourceId,
           resourceType: "LAMBDA",
           severity: "LOW",
-          message: `Review Lambda ${resourceId} usage. Remove unused functions.`,
+          category: "ADVISORY",
+          action: "REVIEW",
+          message: `Lambda function ${resourceId} should be reviewed for optimization.`,
+          remediation:
+            "Review invocation count, duration, memory settings, and remove unused functions or versions.",
           estimatedMonthlySavings: 1,
           status: "OPEN",
         };
@@ -138,7 +241,10 @@ export const generateRecommendations = async (
       {
         $set: {
           severity: recommendation.severity,
+          category: recommendation.category,
+          action: recommendation.action,
           message: recommendation.message,
+          remediation: recommendation.remediation,
           estimatedMonthlySavings: recommendation.estimatedMonthlySavings,
         },
         $setOnInsert: {
