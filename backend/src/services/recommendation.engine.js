@@ -3,14 +3,13 @@ import Recommendation from "../models/recommendation.model.js";
 export const generateRecommendations = async (
   organizationId,
   cloudAccountId,
-  scanResults,
+  scanResults
 ) => {
   const recommendations = [];
 
   for (const resource of scanResults) {
     let recommendation = null;
 
-    // Universal resourceId support
     const resourceId =
       resource.resourceId ||
       resource.instanceId ||
@@ -25,9 +24,6 @@ export const generateRecommendations = async (
     if (!resourceId) continue;
 
     switch (resource.resourceType) {
-      // ======================
-      // EC2
-      // ======================
       case "EC2":
         if (resource.state === "stopped") {
           recommendation = {
@@ -38,13 +34,11 @@ export const generateRecommendations = async (
             severity: "HIGH",
             message: `EC2 Instance ${resourceId} is stopped but still incurring storage cost. Consider terminating it.`,
             estimatedMonthlySavings: 10,
+            status: "OPEN",
           };
         }
         break;
 
-      // ======================
-      // EBS
-      // ======================
       case "EBS":
         if (
           resource.attached === false ||
@@ -58,13 +52,11 @@ export const generateRecommendations = async (
             severity: "HIGH",
             message: `Unattached EBS Volume ${resourceId}. Consider deleting it.`,
             estimatedMonthlySavings: 5,
+            status: "OPEN",
           };
         }
         break;
 
-      // ======================
-      // ELASTIC IP
-      // ======================
       case "ELASTIC_IP":
         if (resource.associated === false) {
           recommendation = {
@@ -75,13 +67,11 @@ export const generateRecommendations = async (
             severity: "HIGH",
             message: `Elastic IP ${resourceId} is not attached to any instance. Release it.`,
             estimatedMonthlySavings: 3,
+            status: "OPEN",
           };
         }
         break;
 
-      // ======================
-      // S3
-      // ======================
       case "S3":
         recommendation = {
           organization: organizationId,
@@ -91,12 +81,10 @@ export const generateRecommendations = async (
           severity: "LOW",
           message: `Enable lifecycle rules on bucket ${resourceId} to move old objects to Glacier.`,
           estimatedMonthlySavings: 2,
+          status: "OPEN",
         };
         break;
 
-      // ======================
-      // RDS
-      // ======================
       case "RDS":
         recommendation = {
           organization: organizationId,
@@ -106,12 +94,10 @@ export const generateRecommendations = async (
           severity: "MEDIUM",
           message: `Review instance size for RDS ${resourceId}. Consider downsizing if underutilized.`,
           estimatedMonthlySavings: 15,
+          status: "OPEN",
         };
         break;
 
-      // ======================
-      // LOAD BALANCER
-      // ======================
       case "LOAD_BALANCER":
         recommendation = {
           organization: organizationId,
@@ -121,12 +107,10 @@ export const generateRecommendations = async (
           severity: "MEDIUM",
           message: `Check if Load Balancer ${resourceId} is unused.`,
           estimatedMonthlySavings: 8,
+          status: "OPEN",
         };
         break;
 
-      // ======================
-      // LAMBDA
-      // ======================
       case "LAMBDA":
         recommendation = {
           organization: organizationId,
@@ -136,18 +120,42 @@ export const generateRecommendations = async (
           severity: "LOW",
           message: `Review Lambda ${resourceId} usage. Remove unused functions.`,
           estimatedMonthlySavings: 1,
+          status: "OPEN",
         };
         break;
     }
 
-    // Push only valid recommendation
-    if (recommendation) {
-      recommendations.push(recommendation);
-    }
-  }
+    if (!recommendation) continue;
 
-  if (recommendations.length > 0) {
-    await Recommendation.insertMany(recommendations);
+    const savedRecommendation = await Recommendation.findOneAndUpdate(
+      {
+        organization: organizationId,
+        cloudAccount: cloudAccountId,
+        resourceId: recommendation.resourceId,
+        resourceType: recommendation.resourceType,
+        status: "OPEN",
+      },
+      {
+        $set: {
+          severity: recommendation.severity,
+          message: recommendation.message,
+          estimatedMonthlySavings: recommendation.estimatedMonthlySavings,
+        },
+        $setOnInsert: {
+          organization: recommendation.organization,
+          cloudAccount: recommendation.cloudAccount,
+          resourceId: recommendation.resourceId,
+          resourceType: recommendation.resourceType,
+          status: "OPEN",
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+      }
+    );
+
+    recommendations.push(savedRecommendation);
   }
 
   return recommendations;

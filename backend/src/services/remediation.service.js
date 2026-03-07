@@ -4,24 +4,25 @@ import { stopEC2Instance } from "./remediators/ec2.remediator.js";
 import { deleteEBSVolume } from "./remediators/ebs.remediator.js";
 import { releaseElasticIP } from "./remediators/network.remediator.js";
 
-export const runAutoRemediation = async (credentials, region) => {
+export const runAutoRemediation = async (credentials, region, cloudAccountId) => {
   try {
     console.log("🚀 Starting Auto Remediation Engine...");
 
-    const openRecs = await Recommendation.find({ status: "OPEN" });
+    const openRecs = await Recommendation.find({
+      cloudAccount: cloudAccountId,
+      status: "OPEN",
+    });
 
     let fixed = 0;
 
     for (const rec of openRecs) {
       try {
-
         switch (rec.resourceType) {
-
-          case "EC2_INSTANCE":
+          case "EC2":
             await stopEC2Instance(credentials, region, rec.resourceId);
             break;
 
-          case "EBS_VOLUME":
+          case "EBS":
             await deleteEBSVolume(credentials, region, rec.resourceId);
             break;
 
@@ -30,6 +31,7 @@ export const runAutoRemediation = async (credentials, region) => {
             break;
 
           default:
+            console.log(`No remediation configured for resourceType: ${rec.resourceType}`);
             continue;
         }
 
@@ -37,9 +39,8 @@ export const runAutoRemediation = async (credentials, region) => {
         await rec.save();
 
         fixed++;
-
       } catch (error) {
-        console.log("Remediation failed:", error.message);
+        console.log(`Remediation failed for ${rec.resourceType} ${rec.resourceId}:`, error.message);
       }
     }
 
@@ -48,7 +49,6 @@ export const runAutoRemediation = async (credentials, region) => {
       fixed,
       message: "Auto remediation completed",
     };
-
   } catch (error) {
     console.error("Remediation Engine Failed:", error);
     throw error;
