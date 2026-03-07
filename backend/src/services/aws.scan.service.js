@@ -7,6 +7,8 @@ import { optimizeECS } from "./optimizers/ecs.optimizer.js";
 import { optimizeEKS } from "./optimizers/eks.optimizer.js";
 import { optimizeRDS } from "./optimizers/rds.optimizer.js";
 import { optimizeS3 } from "./optimizers/s3.optimizer.js";
+import { optimizeLambda } from "./optimizers/lambda.optimizer.js";
+import { optimizeNatGateway } from "./optimizers/natGateway.optimizer.js";
 
 /**
  * Get all AWS regions
@@ -60,6 +62,15 @@ export const scanAllRegions = async (credentials) => {
       /* RDS (suggestion only) */
       const rds = await optimizeRDS(credentials, region);
       allRecommendations.push(...rds);
+
+      /* Lambda (suggestion only) */
+      const lambda = await optimizeLambda(credentials, region);
+      allRecommendations.push(...lambda);
+
+      /* NAT Gateway (suggestion only) */
+      const natGateways = await optimizeNatGateway(credentials, region);
+      allRecommendations.push(...natGateways);
+
     } catch (error) {
       console.log(`⚠️ Failed region ${region}`, error.message);
     }
