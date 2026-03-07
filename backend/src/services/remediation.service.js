@@ -1,6 +1,9 @@
 import Recommendation from "../models/recommendation.model.js";
 
-import { stopEC2Instance } from "./remediators/ec2.remediator.js";
+import {
+  stopEC2Instance,
+  terminateEC2Instance,
+} from "./remediators/ec2.remediator.js";
 import { deleteEBSVolume } from "./remediators/ebs.remediator.js";
 import { releaseElasticIP } from "./remediators/network.remediator.js";
 
@@ -26,8 +29,14 @@ export const runAutoRemediation = async (
 
         switch (rec.resourceType) {
           case "EC2":
-            if (rec.action === "STOP" || rec.action === "TERMINATE") {
+            if (rec.action === "STOP") {
               await stopEC2Instance(credentials, targetRegion, rec.resourceId);
+            } else if (rec.action === "TERMINATE") {
+              await terminateEC2Instance(
+                credentials,
+                targetRegion,
+                rec.resourceId
+              );
             } else {
               continue;
             }
@@ -101,8 +110,10 @@ export const fixSingleRecommendation = async (
 
   switch (rec.resourceType) {
     case "EC2":
-      if (rec.action === "STOP" || rec.action === "TERMINATE") {
+      if (rec.action === "STOP") {
         await stopEC2Instance(credentials, targetRegion, rec.resourceId);
+      } else if (rec.action === "TERMINATE") {
+        await terminateEC2Instance(credentials, targetRegion, rec.resourceId);
       } else {
         throw new Error("Unsupported EC2 action");
       }

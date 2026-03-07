@@ -43,20 +43,21 @@ export const optimizeEC2 = async (credentials, region) => {
     for (const instance of reservation.Instances || []) {
       const state = instance.State?.Name;
 
-      // 1️⃣ Stopped instances → direct recommendation
+      // stopped EC2
       if (state === "stopped") {
         recommendations.push({
           resourceId: instance.InstanceId,
           resourceType: "EC2",
+          region,
           state: "stopped",
           severity: "HIGH",
-          message: `Stopped EC2 instance ${instance.InstanceId}. Consider terminating it if not needed.`,
+          message: `Stopped EC2 instance ${instance.InstanceId} detected.`,
           estimatedMonthlySavings: 10,
         });
         continue;
       }
 
-      // 2️⃣ Only running instances go for CPU analysis
+      // only running instances for CPU analysis
       if (state !== "running") continue;
 
       metricPromises.push(
@@ -80,6 +81,7 @@ export const optimizeEC2 = async (credentials, region) => {
           .then((metrics) => ({
             instance,
             metrics,
+            region,
           }))
           .catch((error) => {
             console.error(
@@ -108,6 +110,7 @@ export const optimizeEC2 = async (credentials, region) => {
       recommendations.push({
         resourceId: result.instance.InstanceId,
         resourceType: "EC2",
+        region: result.region,
         state: "running",
         severity: "HIGH",
         message: `EC2 instance ${result.instance.InstanceId} has <5% CPU utilization for 7 days.`,

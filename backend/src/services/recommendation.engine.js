@@ -24,6 +24,8 @@ export const generateRecommendations = async (
       resource.natGatewayId ||
       null;
 
+    const region = resource.region || null;
+
     if (!resourceId) continue;
 
     switch (resource.resourceType) {
@@ -37,6 +39,7 @@ export const generateRecommendations = async (
             cloudAccount: cloudAccountId,
             resourceId,
             resourceType: "EC2",
+            region,
             severity: "HIGH",
             category: "ACTIONABLE",
             action: "TERMINATE",
@@ -55,6 +58,7 @@ export const generateRecommendations = async (
             cloudAccount: cloudAccountId,
             resourceId,
             resourceType: "EC2",
+            region,
             severity: "HIGH",
             category: "ACTIONABLE",
             action: "STOP",
@@ -77,7 +81,7 @@ export const generateRecommendations = async (
             cloudAccount: cloudAccountId,
             resourceId,
             resourceType: "EBS",
-            region: resource.region,
+            region,
             severity: "HIGH",
             category: "ACTIONABLE",
             action: "DELETE",
@@ -100,6 +104,7 @@ export const generateRecommendations = async (
             cloudAccount: cloudAccountId,
             resourceId,
             resourceType: "ELASTIC_IP",
+            region,
             severity: "HIGH",
             category: "ACTIONABLE",
             action: "RELEASE",
@@ -118,6 +123,7 @@ export const generateRecommendations = async (
           cloudAccount: cloudAccountId,
           resourceId,
           resourceType: "RDS",
+          region,
           severity: "MEDIUM",
           category: "ADVISORY",
           action: "REVIEW",
@@ -135,6 +141,7 @@ export const generateRecommendations = async (
           cloudAccount: cloudAccountId,
           resourceId,
           resourceType: "S3",
+          region,
           severity: "LOW",
           category: "ADVISORY",
           action: "OPTIMIZE",
@@ -152,6 +159,7 @@ export const generateRecommendations = async (
           cloudAccount: cloudAccountId,
           resourceId,
           resourceType: "ECS",
+          region,
           severity: "MEDIUM",
           category: "ADVISORY",
           action: "REVIEW",
@@ -169,6 +177,7 @@ export const generateRecommendations = async (
           cloudAccount: cloudAccountId,
           resourceId,
           resourceType: "EKS",
+          region,
           severity: "MEDIUM",
           category: "ADVISORY",
           action: "REVIEW",
@@ -186,6 +195,7 @@ export const generateRecommendations = async (
           cloudAccount: cloudAccountId,
           resourceId,
           resourceType: "LOAD_BALANCER",
+          region,
           severity: "MEDIUM",
           category: "ADVISORY",
           action: "REVIEW",
@@ -203,6 +213,7 @@ export const generateRecommendations = async (
           cloudAccount: cloudAccountId,
           resourceId,
           resourceType: "NAT_GATEWAY",
+          region,
           severity: "MEDIUM",
           category: "ADVISORY",
           action: "OPTIMIZE",
@@ -210,6 +221,24 @@ export const generateRecommendations = async (
           remediation:
             "Review traffic patterns, consolidate NAT gateways where possible, or redesign outbound routing.",
           estimatedMonthlySavings: 10,
+          status: "OPEN",
+        };
+        break;
+
+      case "LAMBDA":
+        recommendation = {
+          organization: organizationId,
+          cloudAccount: cloudAccountId,
+          resourceId,
+          resourceType: "LAMBDA",
+          region,
+          severity: "LOW",
+          category: "ADVISORY",
+          action: "REVIEW",
+          message: `Lambda function ${resourceId} should be reviewed for optimization.`,
+          remediation:
+            "Review invocation count, duration, memory settings, and remove unused functions or versions.",
+          estimatedMonthlySavings: 1,
           status: "OPEN",
         };
         break;
